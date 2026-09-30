@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#132238">
+  <meta name="author" content="Axel Maximiliano Merlino">
+  <meta name="description" content="Calculadora de precios para MercadoLibre. Estima el precio de publicación a partir del importe neto y los cargos que ingresás. No tiene afiliación oficial con MercadoLibre.">
+  <title>Calculadora de precios para MercadoLibre</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23132238'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='16' fill='%23f0b429' font-family='sans-serif'%3E$%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="estilos.css">
+</head>
+<body class="con-barra">
+  <header class="hero">
+    <div class="hero-inner">
+      <h1>Calculadora de precios para MercadoLibre</h1>
+      <p>Estimá el precio de publicación para recibir el importe neto que querés, después de los descuentos y del envío.</p>
+      <p class="aviso">Es una estimación según los cargos que ingresás. No tiene afiliación oficial con MercadoLibre.</p>
+    </div>
+  </header>
+
+  <main class="pagina">
+    <div class="contenido">
+      <form id="formulario" class="columna-form" novalidate autocomplete="off">
+        <section class="tarjeta grupo">
+          <h2>Lo que querés recibir</h2>
+          <div class="campos">
+            <label class="field">
+              <span class="label">Importe neto que quiero recibir</span>
+              <span class="hint">Después de los descuentos y del envío.</span>
+              <span class="control">
+                <span class="affix">$</span>
+                <input id="neto" name="neto" inputmode="decimal" placeholder="15000" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="next" aria-describedby="neto-ayuda">
+              </span>
+              <span class="msg" id="neto-ayuda" role="alert"></span>
+            </label>
+
+            <label class="field">
+              <span class="label">Costo del envío</span>
+              <span class="hint">Importe fijo. Si no pagás envío, escribí 0.</span>
+              <span class="control">
+                <span class="affix">$</span>
+                <input id="envio" name="envio" inputmode="decimal" placeholder="6500" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="next">
+              </span>
+              <span class="msg" role="alert"></span>
+            </label>
+          </div>
+        </section>
+
+        <section class="tarjeta grupo">
+          <h2>Porcentajes del cálculo</h2>
+          <p class="nota">Estos porcentajes son parámetros que ingresás vos. No son tarifas oficiales. Todos se calculan sobre el precio final de venta y se suman entre sí.</p>
+          <div class="campos">
+            <label class="field">
+              <span class="label">Comisión de venta</span>
+              <span class="control">
+                <input id="comision" name="comision" inputmode="decimal" placeholder="13" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="next">
+                <span class="affix">%</span>
+              </span>
+              <span class="msg" role="alert"></span>
+            </label>
+
+            <label class="field">
+              <span class="label">IIBB</span>
+              <span class="control">
+                <input id="iibb" name="iibb" inputmode="decimal" value="5" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="next">
+                <span class="affix">%</span>
+              </span>
+              <span class="msg" role="alert"></span>
+            </label>
+
+            <label class="field">
+              <span class="label">IVA</span>
+              <span class="control">
+                <input id="iva" name="iva" inputmode="decimal" value="9" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="next">
+                <span class="affix">%</span>
+              </span>
+              <span class="msg" role="alert"></span>
+            </label>
+
+            <label class="field">
+              <span class="label">Recargo por cuotas</span>
+              <span class="control">
+                <input id="cuotas" name="cuotas" inputmode="decimal" value="8,9" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done">
+                <span class="affix">%</span>
+              </span>
+              <span class="msg" role="alert"></span>
+            </label>
+          </div>
+          <div id="tasas-resumen" class="tasas-resumen" aria-live="polite"></div>
+        </section>
+
+        <div class="acciones">
+          <button type="button" class="btn btn-bloque" id="restablecer">Restablecer</button>
+        </div>
+
+        <p class="ayuda">Decimales con coma o punto. Para miles, escribí 16999 o 16.999,00.</p>
+      </form>
+
+      <div class="columna-resultados">
+        <section id="resultados" aria-live="polite">
+          <div id="estado" class="tarjeta estado">
+            <h2>Faltan datos</h2>
+            <p>Completá los campos para ver el precio.</p>
+          </div>
+          <article id="card-sin" class="tarjeta resultado sin" hidden></article>
+          <article id="card-con" class="tarjeta resultado con" hidden></article>
+        </section>
+
+        <details class="como">
+          <summary>Cómo se calcula</summary>
+          <p>El precio es el importe neto deseado más el envío, dividido por lo que queda después de restar los porcentajes. Comisión, IIBB, IVA y el recargo por cuotas se calculan sobre el precio de venta y se suman en ese denominador.</p>
+          <p>Sin cuotas se usan comisión, IIBB e IVA. Con cuotas se incorpora también el recargo. Después cada precio sube al menor entero terminado en 999 que cubra el cálculo. Si ya termina en 999, se mantiene.</p>
+        </details>
+      </div>
+    </div>
+  </main>
+
+  <div class="barra" id="barra">
+    <button type="button" id="ir-sin">
+      <span>Sin cuotas</span>
+      <strong id="barra-sin">—</strong>
+    </button>
+    <button type="button" id="ir-con">
+      <span>Con cuotas</span>
+      <strong id="barra-con">—</strong>
+    </button>
+  </div>
+
+  <footer class="pie">
+    <p>Calculadora de precios para MercadoLibre. Proyecto de Axel Maximiliano Merlino.</p>
+  </footer>
+
+  <noscript>
+    <p>Activá JavaScript para calcular el precio.</p>
+  </noscript>
+
+  <script src="calculo.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
