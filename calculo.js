@@ -7,7 +7,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const CAMPOS = ["neto", "envio", "comision", "iibb", "iva", "cuotas"];
+  const CAMPOS = ["envio", "comision", "iibb", "iva", "cuotas"];
 
   function gcd(a, b) {
     a = a < 0n ? -a : a;
@@ -176,9 +176,9 @@
     return { cents, resto, den, ajustable: tasa.num !== 0n };
   }
 
-  function cuadrarPorcentajes(precio, neto, envio, lineas) {
+  function cuadrarPorcentajes(precioCentavos, neto, envio, lineas) {
     const cents = lineas.map((linea) => linea.cents);
-    let diff = precio * 100n - neto - envio - cents.reduce((suma, valor) => suma + valor, 0n);
+    let diff = precioCentavos - neto - envio - cents.reduce((suma, valor) => suma + valor, 0n);
     if (diff === 0n) return cents;
 
     const indices = lineas
@@ -234,7 +234,7 @@
       const envioCent = aCentavos(envio.num, envio.den);
       const detalles = tasas.map((tasa) => detallePorcentaje(precioActual, tasa));
       const [comision, iibb, iva, cuotas = 0n] = cuadrarPorcentajes(
-        precioActual,
+        precioActual * 100n,
         neto,
         envioCent,
         detalles
@@ -287,11 +287,42 @@
     };
   }
 
+  function resolverNeto(entradas) {
+    const modo = entradas && entradas.modo === "costo" ? "costo" : "directo";
+    const tipo = entradas && entradas.tipoGanancia === "porcentaje" ? "porcentaje" : "monto";
+    const errores = { costo: null, ganancia: null, neto: null };
+
+    if (modo === "directo") {
+      const neto = parseNumero(entradas ? entradas.neto : "");
+      errores.neto = neto.estado === "ok" ? null : neto.estado;
+      return { modo, tipo, errores, neto: neto.estado === "ok" ? neto : null };
+    }
+
+    const costo = parseNumero(entradas ? entradas.costo : "");
+    const ganancia = parseNumero(entradas ? entradas.ganancia : "");
+    errores.costo = costo.estado === "ok" ? null : costo.estado;
+    errores.ganancia = ganancia.estado === "ok" ? null : ganancia.estado;
+    if (costo.estado !== "ok" || ganancia.estado !== "ok") {
+      return { modo, tipo, errores, neto: null };
+    }
+
+    const neto =
+      tipo === "porcentaje"
+        ? reducir(
+            costo.num * (ganancia.den * 100n + ganancia.num),
+            costo.den * ganancia.den * 100n
+          )
+        : sumarDos(costo, ganancia);
+    return { modo, tipo, errores, neto };
+  }
+
   function calcular(entradas) {
     const errores = {};
     const valores = {};
     let hayVacio = false;
     let hayError = false;
+    const resuelto = resolverNeto(entradas || {});
+    Object.assign(errores, resuelto.errores);
 
     for (const campo of CAMPOS) {
       const parsed = parseNumero(entradas ? entradas[campo] : "");
@@ -301,12 +332,20 @@
       valores[campo] = parsed;
     }
 
+    for (const codigo of Object.values(resuelto.errores)) {
+      if (codigo === "vacio") hayVacio = true;
+      if (codigo === "invalido" || codigo === "negativo") hayError = true;
+    }
+    valores.neto = resuelto.neto;
+
     const tasas = leerTasas(valores);
 
     if (hayVacio || hayError) {
       return {
         estado: hayError ? "error" : "incompleto",
         errores,
+        modo: resuelto.modo,
+        netoUsadoCentavos: resuelto.neto ? aCentavos(resuelto.neto.num, resuelto.neto.den) : null,
         tasas,
         sinCuotas: null,
         conCuotas: null,
@@ -319,6 +358,8 @@
     return {
       estado: "ok",
       errores,
+      modo: resuelto.modo,
+      netoUsadoCentavos: aCentavos(valores.neto.num, valores.neto.den),
       tasas,
       sinCuotas: calcularModalidad(objetivo, [comision, iibb, iva], valores.envio, valores.neto),
       conCuotas: calcularModalidad(
@@ -330,6 +371,92 @@
     };
   }
 
+  function detalleDesdeCentavos(precioCentavos, tasa) {
+    const numerador = precioCentavos * tasa.num;
+    const den = tasa.den;
+    const resto = den === 0n ? 0n : numerador % den;
+    const cents = den === 0n ? 0n : resto * 2n >= den ? numerador / den + 1n : numerador / den;
+    return { cents, resto, den, ajustable: tasa.num !== 0n };
+  }
+
+  function gananciaModalidad(precio, tasas, envio) {
+    const suma = sumarTasas(tasas);
+    if (suma.den <= 0n || suma.num >= suma.den) {
+      return {
+        ok: false,
+        codigo: "porcentajes",
+        sumaTexto: formatearPorcentaje(suma.num, suma.den),
+      };
+    }
+
+    const restante = reducir(suma.den - suma.num, suma.den);
+    const precioCentavos = aCentavos(precio.num, precio.den);
+    const envioCent = aCentavos(envio.num, envio.den);
+    const netoExacto = reducir(
+      precio.num * restante.num * envio.den - envio.num * precio.den * restante.den,
+      precio.den * restante.den * envio.den
+    );
+    const neto = aCentavos(netoExacto.num, netoExacto.den);
+    const detalles = tasas.map((tasa) => detalleDesdeCentavos(precioCentavos, tasa));
+    const [comision, iibb, iva, cuotas = 0n] = cuadrarPorcentajes(
+      precioCentavos,
+      neto,
+      envioCent,
+      detalles
+    );
+
+    return {
+      ok: true,
+      precioCentavos,
+      comision,
+      iibb,
+      iva,
+      cuotas,
+      envio: envioCent,
+      neto,
+    };
+  }
+
+  function gananciaPublicada(entradas) {
+    const publicado = parseNumero(entradas ? entradas.publicado : "");
+    if (publicado.estado === "vacio") {
+      return { estado: "oculto", errorPublicado: null, sinCuotas: null, conCuotas: null };
+    }
+    if (publicado.estado !== "ok") {
+      return { estado: "error", errorPublicado: publicado.estado, sinCuotas: null, conCuotas: null };
+    }
+
+    const envio = parseNumero(entradas.envio);
+    const porcentajes = ["comision", "iibb", "iva", "cuotas"].map((clave) => parseNumero(entradas[clave]));
+    const hayVacio = envio.estado === "vacio" || porcentajes.some((valor) => valor.estado === "vacio");
+    const hayError =
+      envio.estado === "invalido" ||
+      envio.estado === "negativo" ||
+      porcentajes.some((valor) => valor.estado === "invalido" || valor.estado === "negativo");
+
+    if (hayVacio || hayError) {
+      return { estado: hayError ? "error" : "incompleto", errorPublicado: null, sinCuotas: null, conCuotas: null };
+    }
+
+    const valores = {
+      envio,
+      comision: porcentajes[0],
+      iibb: porcentajes[1],
+      iva: porcentajes[2],
+      cuotas: porcentajes[3],
+    };
+    const tasas = leerTasas(valores);
+    const { comision, iibb, iva, cuotas } = tasas.lista;
+
+    return {
+      estado: "ok",
+      errorPublicado: null,
+      precioCentavos: aCentavos(publicado.num, publicado.den),
+      sinCuotas: gananciaModalidad(publicado, [comision, iibb, iva], envio),
+      conCuotas: gananciaModalidad(publicado, [comision, iibb, iva, cuotas], envio),
+    };
+  }
+
   return {
     CAMPOS,
     parseNumero,
@@ -337,5 +464,6 @@
     formatearPesos,
     formatearPorcentaje,
     calcular,
+    gananciaPublicada,
   };
 });

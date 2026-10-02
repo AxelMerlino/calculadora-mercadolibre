@@ -51,6 +51,64 @@ eq(tope.conCuotas.ok, false);
 eq(caso({ neto: "", envio: "1", comision: "1" }).estado, "incompleto");
 eq(caso({ neto: "-1", envio: "1", comision: "1" }).estado, "error");
 
+const porMonto = caso({
+  modo: "costo",
+  costo: "10000",
+  ganancia: "3000",
+  tipoGanancia: "monto",
+  envio: "2000",
+  comision: "13",
+});
+eq(porMonto.estado, "ok");
+eq(porMonto.netoUsadoCentavos, 1300000n);
+eq(porMonto.sinCuotas.precio, 20999n);
+
+const porPorcentaje = caso({
+  modo: "costo",
+  costo: "10000",
+  ganancia: "30",
+  tipoGanancia: "porcentaje",
+  envio: "2000",
+  comision: "13",
+});
+eq(porPorcentaje.netoUsadoCentavos, 1300000n);
+eq(porPorcentaje.sinCuotas.precio, porMonto.sinCuotas.precio);
+
+const porcentajeDecimal = caso({
+  modo: "costo",
+  costo: "10000",
+  ganancia: "8,5",
+  tipoGanancia: "porcentaje",
+  envio: "0",
+  comision: "0",
+  iibb: "0",
+  iva: "0",
+  cuotas: "0",
+});
+eq(porcentajeDecimal.netoUsadoCentavos, 1085000n);
+
+const publicada = require("./calculo.js").gananciaPublicada({
+  publicado: "19999",
+  envio: "2000",
+  comision: "13",
+  iibb: "5",
+  iva: "9",
+  cuotas: "8,9",
+});
+eq(publicada.estado, "ok");
+eq(publicada.sinCuotas.neto, 1259927n);
+eq(publicada.conCuotas.neto, 1081936n);
+eq(
+  publicada.sinCuotas.comision +
+    publicada.sinCuotas.iibb +
+    publicada.sinCuotas.iva +
+    publicada.sinCuotas.envio +
+    publicada.sinCuotas.neto,
+  publicada.sinCuotas.precioCentavos
+);
+eq(require("./calculo.js").gananciaPublicada({ publicado: "" }).estado, "oculto");
+eq(require("./calculo.js").gananciaPublicada({ publicado: "-5", envio: "0", comision: "1", iibb: "5", iva: "9", cuotas: "8,9" }).estado, "error");
+
 let semilla = 17;
 function aleatorio() {
   semilla = (semilla * 1664525 + 1013904223) >>> 0;

@@ -24,17 +24,63 @@
       <form id="formulario" class="columna-form" novalidate autocomplete="off">
         <section class="tarjeta grupo">
           <h2>Lo que querés recibir</h2>
-          <div class="campos">
+          <div class="segmento" role="radiogroup" aria-label="Cómo indicar el importe neto">
+            <label>
+              <input type="radio" name="modo" value="costo" checked>
+              Costo y ganancia
+            </label>
+            <label>
+              <input type="radio" name="modo" value="directo">
+              Importe neto
+            </label>
+          </div>
+
+          <div id="panel-costo" class="campos">
+            <label class="field">
+              <span class="label">Costo del producto</span>
+              <span class="hint">Lo que te sale conseguirlo o fabricarlo.</span>
+              <span class="control">
+                <span class="affix">$</span>
+                <input id="costo" name="costo" inputmode="decimal" placeholder="10000" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="next">
+              </span>
+              <span class="msg" role="alert"></span>
+            </label>
+
+            <div class="field">
+              <span class="label" id="ganancia-label">Ganancia que quiero</span>
+              <span class="hint" id="ganancia-hint">Además de recuperar el costo. Se suma al costo para obtener el importe neto.</span>
+              <div class="segmento segmento-chico" role="radiogroup" aria-label="La ganancia es un monto o un porcentaje">
+                <label>
+                  <input type="radio" name="tipoGanancia" value="monto" checked>
+                  Monto
+                </label>
+                <label>
+                  <input type="radio" name="tipoGanancia" value="porcentaje">
+                  Porcentaje
+                </label>
+              </div>
+              <label class="control">
+                <span class="affix" id="ganancia-affix">$</span>
+                <input id="ganancia" name="ganancia" inputmode="decimal" placeholder="3000" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="next" aria-labelledby="ganancia-label">
+              </label>
+              <span class="msg" role="alert"></span>
+            </div>
+            <p id="neto-resultado" class="neto-resultado" hidden></p>
+          </div>
+
+          <div id="panel-directo" class="campos" hidden>
             <label class="field">
               <span class="label">Importe neto que quiero recibir</span>
               <span class="hint">Después de los descuentos y del envío.</span>
               <span class="control">
                 <span class="affix">$</span>
-                <input id="neto" name="neto" inputmode="decimal" placeholder="15000" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="next" aria-describedby="neto-ayuda">
+                <input id="neto" name="neto" inputmode="decimal" placeholder="15000" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="next">
               </span>
-              <span class="msg" id="neto-ayuda" role="alert"></span>
+              <span class="msg" role="alert"></span>
             </label>
+          </div>
 
+          <div class="campos">
             <label class="field">
               <span class="label">Costo del envío</span>
               <span class="hint">Importe fijo. Si no pagás envío, escribí 0.</span>
@@ -90,6 +136,22 @@
           <div id="tasas-resumen" class="tasas-resumen" aria-live="polite"></div>
         </section>
 
+        <section class="tarjeta grupo">
+          <h2>Precio ya publicado</h2>
+          <p class="nota">Opcional. Con el precio al que lo tenés publicado, calcula la ganancia neta usando la comisión, IIBB, IVA, el recargo y el envío de arriba.</p>
+          <div class="campos">
+            <label class="field">
+              <span class="label">Precio publicado</span>
+              <span class="hint">El precio de la publicación, sin modificarlo.</span>
+              <span class="control">
+                <span class="affix">$</span>
+                <input id="publicado" name="publicado" inputmode="decimal" placeholder="19999" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done">
+              </span>
+              <span class="msg" role="alert"></span>
+            </label>
+          </div>
+        </section>
+
         <div class="acciones">
           <button type="button" class="btn btn-bloque" id="restablecer">Restablecer</button>
         </div>
@@ -105,12 +167,14 @@
           </div>
           <article id="card-sin" class="tarjeta resultado sin" hidden></article>
           <article id="card-con" class="tarjeta resultado con" hidden></article>
+          <article id="card-ganancia" class="tarjeta resultado publicada" hidden></article>
         </section>
 
         <details class="como">
           <summary>Cómo se calcula</summary>
           <p>El precio es el importe neto deseado más el envío, dividido por lo que queda después de restar los porcentajes. Comisión, IIBB, IVA y el recargo por cuotas se calculan sobre el precio de venta y se suman en ese denominador.</p>
           <p>Sin cuotas se usan comisión, IIBB e IVA. Con cuotas se incorpora también el recargo. Después cada precio sube al menor entero terminado en 999 que cubra el cálculo. Si ya termina en 999, se mantiene.</p>
+          <p>Si cargás un precio ya publicado, la ganancia neta es ese precio por lo que queda después de los porcentajes, menos el envío.</p>
         </details>
       </div>
     </div>
